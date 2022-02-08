@@ -105,6 +105,7 @@ class TorchInterfaceRecomm(nn.Module, metaclass=ABCMeta):
             history['time'] = np.round(time.time() - start_epoch_time, 2)
 
             history['train_loss'] = train_loss / total_step
+            sys.stdout.write(f"loss : {history['train_loss']:3.3f}")
 
             epoch_val_loss, output, label = self._validation(test_dataloader, loss_func)
             history['val_loss'] = epoch_val_loss
