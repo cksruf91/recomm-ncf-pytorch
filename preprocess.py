@@ -2,12 +2,11 @@ import argparse
 import os
 import random
 from itertools import accumulate
-from typing import Tuple, Any
+from typing import Any
 
 from pandas import DataFrame
 
 from common.loading_functions import loading_brunch, loading_movielens_1m, loading_movielens_10m
-from common.utils import DefaultDict
 from config import CONFIG
 
 
@@ -17,7 +16,32 @@ def args():
     return parser.parse_args()
 
 
-def get_negative_samples(train_df, test_df, user_col, item_col, n_sample=99):
+def uniform_random_sample(n, exclude_items, items):
+    sample = []
+    while len(sample) < n:
+        n_item = random.choice(items)
+        if n_item in exclude_items:
+            continue
+        if n_item in sample:
+            continue
+        sample.append(n_item)
+    assert len(sample) == n
+    return sample
+
+
+def weighted_random_sample(n, exclude_items, items, cum_sums):
+    n_items = len(exclude_items)
+    samples = random.choices(
+        items, cum_weights=cum_sums, k=n_items + n + 100
+    )
+
+    sample = list(set(samples) - exclude_items)
+    sample = sample[:n]
+    assert len(sample) == n
+    return sample
+
+
+def get_negative_samples(train_df, test_df, user_col, item_col, n_sample=99, method='random'):
     negative_sampled_test = []
 
     # 샘플링을 위한 아이템들의 누적합
@@ -39,14 +63,14 @@ def get_negative_samples(train_df, test_df, user_col, item_col, n_sample=99):
             inter_items = user_interactions[uid]
         except KeyError as e:
             inter_items = set([])
-        n_items = len(inter_items)
-        samples = random.choices(
-            item_list, cum_weights=item_cumulate_count, k=n_items + n_sample + 100
-        )
 
-        sample = list(set(samples) - inter_items)
-        sample = sample[:n_sample]
-        assert len(sample) == n_sample
+        if method == 'random':
+            sample = uniform_random_sample(n_sample, inter_items, item_list)
+        elif method == 'weighted':
+            sample = weighted_random_sample(n_sample, inter_items, item_list, cum_sums=item_cumulate_count)
+        else:
+            raise ValueError(f"invalid sampling method {method}")
+
         row.extend(sample)
 
         negative_sampled_test.append(row)
@@ -55,14 +79,14 @@ def get_negative_samples(train_df, test_df, user_col, item_col, n_sample=99):
 
 
 def loading_data(data_type: str) -> tuple[Any, list[list], Any, Any]:
-    user_col = 'UserID'
+    user_col = 'user_id'
 
     if data_type == '10M':
-        item_col = 'MovieID'
+        item_col = 'item_id'
         file_path = os.path.join(CONFIG.DATA, 'movielens', 'ml-10M100K')
         loading_function = loading_movielens_10m
     elif data_type == '1M':
-        item_col = 'MovieID'
+        item_col = 'item_id'
         file_path = os.path.join(CONFIG.DATA, 'movielens', 'ml-1m')
         loading_function = loading_movielens_1m
     elif data_type == 'BRUNCH':
@@ -74,44 +98,26 @@ def loading_data(data_type: str) -> tuple[Any, list[list], Any, Any]:
 
     train, test, item, user = loading_function(file_path)
 
-    test_negative = get_negative_samples(train, test, user_col, item_col, n_sample=99)
+    test_negative = get_negative_samples(train, test, user_col, item_col, n_sample=99, method='random')
 
     return train, test_negative, item, user
 
 
-def movielens_preprocess(train: DataFrame, test: list, items: DataFrame, users: DataFrame) -> Tuple[
-    DataFrame, DataFrame, DataFrame]:
-    # UserID indexing
-    user_id_mapper = DefaultDict(None, {
-        user_id: user_index_id for user_index_id, user_id in enumerate(train['UserID'].unique())
-    })
-
-    train['user_id'] = train['UserID'].map(lambda x: user_id_mapper[x])
-    users['user_id'] = users['UserID'].map(lambda x: user_id_mapper[x])
-
-    # MovieID -> item_id
-    item_id_mapper = DefaultDict(None, {
-        movie_id: item_id for item_id, movie_id in enumerate(train['MovieID'].unique())
-    })
-
-    train['item_id'] = train['MovieID'].map(lambda x: item_id_mapper[x])
-    items['item_id'] = items['MovieID'].map(lambda x: item_id_mapper[x])
-
-    for i in range(len(test)):
-        test[i][0] = user_id_mapper[test[i][0]]  # user id
-        test[i][1:] = [item_id_mapper[item] for item in test[i][1:]]  # item id
-
+def movielens_preprocess(train: DataFrame, test: list, items: DataFrame, users: DataFrame) -> tuple[
+    DataFrame, list, DataFrame, DataFrame]:
+    train = train[['item_id', 'user_id', 'Rating']]
+    items = items[["MovieID", "Title", "Genres", "item_id"]]
+    users = users[["UserID", "user_id", "Gender", "Age", "Occupation", "Zip-code"]]
     return train, test, items, users
 
 
-def brunch_preprocess(train: DataFrame, test: list, items: DataFrame, users: DataFrame) -> Tuple[
-    DataFrame, DataFrame, DataFrame]:
-    return None
+def brunch_preprocess(train: DataFrame, test: list, items: DataFrame, users: DataFrame) -> tuple[
+    DataFrame, list, DataFrame, DataFrame]:
+    return train, test, items, users
 
 
 def preprocess_data(data_type: str, train: DataFrame, test: list, items: DataFrame, users: DataFrame) -> tuple[
-    DataFrame, DataFrame, DataFrame]:
-
+    DataFrame, list, DataFrame, DataFrame]:
     if data_type == '10M':
         loading_function = movielens_preprocess
     elif data_type == '1M':

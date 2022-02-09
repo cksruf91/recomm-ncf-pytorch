@@ -41,6 +41,24 @@ def loading_movielens_1m(file_path):
         engine='python', encoding='iso-8859-1'
     )
 
+    # MovieID -> item_id
+    org_movie_id = set(ratings['MovieID'].unique().tolist() + movies['MovieID'].unique().tolist())
+    movie_id_mapper = {
+        movie_id: item_id for item_id, movie_id in enumerate(org_movie_id)
+    }
+    print(len(movie_id_mapper), len(movies))
+    ratings['item_id'] = ratings['MovieID'].map(lambda x: movie_id_mapper[x])
+    movies['item_id'] = movies['MovieID'].map(lambda x: movie_id_mapper[x])
+
+    # UserID -> user_id
+    org_user_id = set(ratings['UserID'].unique().tolist() + users['UserID'].unique().tolist())
+    user_id_mapper = {
+        user_id: user_index_id for user_index_id, user_id in enumerate(org_user_id)
+    }
+    print(len(user_id_mapper), len(users))
+    ratings['user_id'] = ratings['UserID'].map(lambda x: user_id_mapper[x])
+    users['user_id'] = users['UserID'].map(lambda x: user_id_mapper[x])
+
     train, test = train_test_split(ratings, user_col='UserID', item_col='Timestamp')
 
     print(f'train data size : {len(train)}, test data size : {len(test)}')
@@ -67,6 +85,22 @@ def loading_movielens_10m(file_path):
     )
 
     users = pd.DataFrame({'UserID': ratings['UserID'].unique()})
+
+    # MovieID -> item_id
+    org_movie_id = set(ratings['MovieID'].unique().tolist() + movies['MovieID'].unique().tolist())
+    movie_id_mapper = {
+        movie_id: item_id for item_id, movie_id in enumerate(org_movie_id)
+    }
+    ratings['item_id'] = ratings['MovieID'].map(lambda x: movie_id_mapper[x])
+    movies['item_id'] = movies['MovieID'].map(lambda x: movie_id_mapper[x])
+
+    # UserID -> user_id
+    org_user_id = ratings['UserID'].unique().tolist()
+    user_id_mapper = {
+        user_id: user_index_id for user_index_id, user_id in enumerate(org_user_id)
+    }
+    ratings['user_id'] = ratings['UserID'].map(lambda x: user_id_mapper[x])
+    users['user_id'] = users['UserID'].map(lambda x: user_id_mapper[x])
 
     train, test = train_test_split(ratings, user_col='UserID', item_col='Timestamp')
 

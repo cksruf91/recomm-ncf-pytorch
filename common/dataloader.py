@@ -6,11 +6,9 @@ from torch.utils.data import Dataset
 from common.utils import progressbar
 
 
-def to_sparse_matrix(df, x_col, y_col, v_col):
+def to_sparse_matrix(df, num_x, num_y, x_col, y_col, v_col):
     total = len(df)
 
-    num_x = df[x_col].nunique()
-    num_y = df[y_col].nunique()
     mat = sp.dok_matrix((num_x + 1, num_y + 1), dtype=np.float32)
     for i, (user, item, rating) in enumerate(zip(df[x_col], df[y_col], df[v_col])):
         progressbar(total, i + 1, prefix='to sparse matrix')
@@ -23,7 +21,9 @@ def to_sparse_matrix(df, x_col, y_col, v_col):
 class Iterator(Dataset):
 
     def __init__(self, mat, n_negative, device=None):
-        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        if device is None:
+            device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.device = device
 
         self.n_negative = n_negative
         self.user_inputs = []
@@ -66,11 +66,14 @@ class Iterator(Dataset):
 class TestIterator(Dataset):
 
     def __init__(self, test_file, device=None):
-        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.data = []
+        if device is None:
+            device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.device = device
         self.read_file(test_file)
+        self.n_item = len(self.data[0][1:])
 
     def read_file(self, test_file):
-        self.data = []
         skip = 0
         with open(test_file, 'r') as f:
             for row in f:
@@ -86,8 +89,8 @@ class TestIterator(Dataset):
         return torch.tensor(value, device=self.device, dtype=dtype)
 
     def __getitem__(self, index):
-        user = [self.data[index][0]] * 100
-        label = [1] + [0] * 99
+        user = [self.data[index][0]] * self.n_item
+        label = [1] + [0] * (self.n_item-1)
 
         user = self._to_tensor(user)
         item = self._to_tensor(self.data[index][1:])
