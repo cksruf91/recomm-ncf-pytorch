@@ -7,7 +7,7 @@ from torch.nn import BCEWithLogitsLoss
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 
-from common.dataloader import to_sparse_matrix, Iterator, TestIterator
+from common.data_iterator import to_sparse_matrix, Iterator, TestIterator
 from config import CONFIG
 from model.callbacks import ModelCheckPoint, MlflowLogger
 from model.metrics import nDCG, RecallAtK
@@ -69,7 +69,9 @@ if __name__ == '__main__':
     metrics = [nDCG(), RecallAtK()]
     model_version = f'nmf_v{argument.model_version}'
     callback = [
-        ModelCheckPoint(os.path.join('result', model_version + '_loss{val_loss:1.3f}_nDCG{val_nDCG:1.3f}')),
+        ModelCheckPoint(
+            os.path.join('result', model_version + 'e{epoch:02d}_loss{val_loss:1.3f}_nDCG{val_nDCG:1.3f}.zip')
+        ),
         MlflowLogger(experiment_name='1M', model_params=model_params, run_name=model_version, log_model=True)
     ]
 
