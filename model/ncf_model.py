@@ -87,7 +87,7 @@ class NeuralMF(TorchInterfaceRecomm):
         Tensor, Tensor, Tensor]:
         users, items, labels = data
 
-        pred = self(users, items)
+        pred = self.forward(users, items)
         loss = loss_func(pred, labels)
 
         if train:
@@ -111,6 +111,7 @@ class NeuralMF(TorchInterfaceRecomm):
         with torch.no_grad():
             for step, data in enumerate(test_dataloader):
                 data = [d.reshape(-1) for d in data]
+                # data = [user, item, label]
                 loss, y, y_hat = self._compute_loss(data, loss_func, train=False)
                 val_loss += loss.item()
 

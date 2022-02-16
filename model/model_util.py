@@ -116,23 +116,3 @@ class TorchInterfaceRecomm(nn.Module, metaclass=ABCMeta):
             for func in callback:
                 func(self, history)
             # ------ epoch end ------
-
-#     def validation(self, test_dataloader, loss_func):
-#         self.eval()
-#         total_step = len(test_dataloader)
-#         val_loss = 0
-#         output, label = [], []
-
-#         with torch.no_grad():
-#             for step, data in enumerate(test_dataloader):
-
-#                 loss, y, y_hat = self._compute_loss(data, loss_func, train=False)
-#                 val_loss += loss.item()
-#                 output.extend(y_hat)
-#                 label.extend(y)
-
-#                 if step >= total_step:
-#                     break
-
-#         val_loss = val_loss / total_step
-#         return val_loss, output, label

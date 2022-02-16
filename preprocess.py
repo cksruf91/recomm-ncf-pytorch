@@ -1,5 +1,6 @@
 import argparse
 import os
+from typing import Tuple
 
 from pandas import DataFrame
 
@@ -13,19 +14,26 @@ def args():
     return parser.parse_args()
 
 
-def movielens_preprocess(train: DataFrame, test: list, items: DataFrame, users: DataFrame) -> tuple[
+def movielens_preprocess(train: DataFrame, test: list, items: DataFrame, users: DataFrame) -> Tuple[
     DataFrame, list, DataFrame, DataFrame]:
     train = train[['item_id', 'user_id', 'Rating']]
     items = items[["MovieID", "Title", "Genres", "item_id"]]
     return train, test, items, users
 
 
-def brunch_preprocess(train: DataFrame, test: list, items: DataFrame, users: DataFrame) -> tuple[
+def brunch_preprocess(train: DataFrame, test: list, items: DataFrame, users: DataFrame) -> Tuple[
     DataFrame, list, DataFrame, DataFrame]:
+    print(f"train dataset : {len(train)}")
+
+    train['Rating'] = 5  # 사용자가 해당글을 좋아한다고 가정
+
+    train = train[['item_id', 'user_id', 'Rating', 'Timestamp']]
+    items = items[["item_id", "magazine_id", "user_id", "title", "sub_title", "keyword_list", "display_url", "id"]]
+    users = users[['user_id', 'keyword_list', 'following_list', 'id']]
     return train, test, items, users
 
 
-def preprocess_data(data_type: str, train: DataFrame, test: list, items: DataFrame, users: DataFrame) -> tuple[
+def preprocess_data(data_type: str, train: DataFrame, test: list, items: DataFrame, users: DataFrame) -> Tuple[
     DataFrame, list, DataFrame, DataFrame]:
     if data_type == '10M':
         loading_function = movielens_preprocess
