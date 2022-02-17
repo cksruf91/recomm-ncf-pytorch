@@ -9,35 +9,44 @@ from model.model_util import TorchInterfaceRecomm
 
 class MLP(nn.Module):
 
-    def __init__(self, user_size, item_size, hidden_size, layers=None):
+    def __init__(self, user_size, item_size, layers=None):
         super().__init__()
         if layers is None:
             layers = [64, 32, 16, 8]
-        self.layers = [hidden_size, ] + layers
-        self.user_embedding = nn.Embedding(user_size, hidden_size)
-        self.item_embedding = nn.Embedding(item_size, hidden_size)
-
+        self.layers = layers
+        self.dropout = 0.0
+        
+        n_factor = int(self.layers[0]/2)
+        self.user_embedding = nn.Embedding(user_size, n_factor)
+        self.item_embedding = nn.Embedding(item_size, n_factor)
+        
         self.multi_layer = nn.Sequential(
             OrderedDict(
-                {f'layer_{i:02d}': nn.Linear(self.layers[i - 1], self.layers[i]) for i in range(1, len(self.layers))}
+                {f'layer_{i:02d}': self.dense_layer(self.layers[i - 1], self.layers[i]) for i in range(1, len(self.layers))}
             )
+        )
+
+    def dense_layer(self, in_dim, out_dim):
+        return nn.Sequential(
+            # nn.Dropout(p=self.dropout),
+            nn.Linear(in_dim, out_dim), nn.ReLU()
         )
 
     def forward(self, user, item):
         user_emb = self.user_embedding(user)
         item_emb = self.item_embedding(item)
 
-        x = user_emb * item_emb
+        x = torch.concat([user_emb, item_emb], axis=-1)
 
         return self.multi_layer(x)
 
 
 class GMF(nn.Module):
 
-    def __init__(self, user_size, item_size, hidden_size):
+    def __init__(self, user_size, item_size, n_factor):
         super().__init__()
-        self.user_embedding = nn.Embedding(user_size, hidden_size)
-        self.item_embedding = nn.Embedding(item_size, hidden_size)
+        self.user_embedding = nn.Embedding(user_size, n_factor)
+        self.item_embedding = nn.Embedding(item_size, n_factor)
 
     def forward(self, user, item):
         user_emb = self.user_embedding(user)
@@ -49,7 +58,7 @@ class GMF(nn.Module):
 class NeuralMF(TorchInterfaceRecomm):
     """https://github.com/hexiangnan/neural_collaborative_filtering"""
 
-    def __init__(self, user_size: int, item_size: int, hidden_size: int, layers=None,
+    def __init__(self, user_size: int, item_size: int, n_factor: int, layers=None,
                  component: list = None, k: int = 10, device: torch.device = torch.device('cpu')):
         super().__init__()
         if layers is None:
@@ -63,17 +72,29 @@ class NeuralMF(TorchInterfaceRecomm):
 
         self.backbone_models = {}
         if 'gmf' in self.component:
-            self.gmf = GMF(user_size, item_size, hidden_size)
+            self.gmf = GMF(user_size, item_size, n_factor)
             self.backbone_models['gmf'] = self.gmf
 
         if 'mlp' in self.component:
-            self.mlp = MLP(user_size, item_size, hidden_size, layers)
+            self.mlp = MLP(user_size, item_size, layers)
             self.backbone_models['mlp'] = self.mlp
 
-        self.output_layer = nn.Linear(int(layers[-1] * len(self.component)), 1)
+        self.output_layer = nn.Linear(int(n_factor * len(self.component)), 1)
         self.k = k
         self.to(device)
+        self._init_weight_()
 
+    def _init_weight_(self):
+        
+        for name, module in self.named_modules():
+            if isinstance(module, nn.Embedding):
+                nn.init.normal_(module.weight, std=0.01)
+            elif isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+
+            if name == 'output_layer':
+                nn.init.kaiming_uniform_(module.weight, a=1, nonlinearity="sigmoid")
+        
     def forward(self, user, item):
         vectors = []
         for k in self.component:
@@ -92,7 +113,7 @@ class NeuralMF(TorchInterfaceRecomm):
 
         if train:
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.parameters(), 1.0)
+            # torch.nn.utils.clip_grad_norm_(self.parameters(), 1.0)
             optimizer.step()
 
             if scheduler is not None:

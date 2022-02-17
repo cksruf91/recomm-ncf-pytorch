@@ -25,6 +25,13 @@ def train_test_split(df: DataFrame, user_col: str, time_col: str) -> Tuple[DataF
 
     Returns: 학습 데이터셋, 테스트 데이터셋
     """
+    
+    # temp = df.reset_index()
+    # test_idx = temp.groupby(user_col)['index'].last().tolist()
+    # train_idx = list(set(df.index) - set(test_idx))
+    # test = df.loc[test_idx]
+    # train = df.loc[train_idx]
+
     last_action_time = df.groupby(user_col)[time_col].transform('max')
 
     test = df[df[time_col] == last_action_time]
@@ -63,6 +70,8 @@ def loading_movielens_1m(file_path):
         sep='::', header=None, names=user_header.split('::'),
         engine='python', encoding='iso-8859-1'
     )
+    
+    ratings.sort_values(['UserID','Timestamp'], inplace=True)
 
     # MovieID -> item_id
     org_movie_id = set(ratings['MovieID'].unique().tolist() + movies['MovieID'].unique().tolist())
@@ -108,6 +117,8 @@ def loading_movielens_10m(file_path):
     )
 
     users = pd.DataFrame({'UserID': ratings['UserID'].unique()})
+    
+    ratings.sort_values(['UserID','Timestamp'], inplace=True)
 
     # MovieID -> item_id
     org_movie_id = set(ratings['MovieID'].unique().tolist() + movies['MovieID'].unique().tolist())
@@ -178,6 +189,8 @@ def loading_brunch(file_path):
     interactions = logfile_to_df(logfile_dir)
     user_meta = metadata_to_df(user_meta_file)
     item_meta = metadata_to_df(item_meta_file)
+    
+    interactions.sort_values(['UserID','Timestamp'], inplace=True)
 
     # random sampling
     total_user = interactions['UserID'].nunique()

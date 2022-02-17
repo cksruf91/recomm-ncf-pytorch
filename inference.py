@@ -38,7 +38,7 @@ def prediction(model, user, items):
             scores[i] = sigmoid(model(ur, it))
         _, indices = torch.topk(scores, k=argument.eval_k)
 
-    return [items[i] for i in indices.numpy()]
+    return [items[i] for i in indices.cpu().numpy()]
 
 
 if __name__ == '__main__':
@@ -55,22 +55,26 @@ if __name__ == '__main__':
 
     # loading model
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    nmf = NeuralMF(n_user, n_item, hidden_size=8, layers=[64, 32, 16, 8], component=['gmf', 'mlp'], device=device)
+    nmf = NeuralMF(n_user, n_item, n_factor=8, layers=[64, 32, 16, 8], component=['gmf', 'mlp'], device=device)
     nmf.load(os.path.join('result', argument.dataset, argument.weight))
     nmf.eval()
+    
+    display_cols = ['Title', 'Genres']
+    if argument.dataset == 'BRUNCH':
+        display_cols = ['title', 'keyword_list', 'display_url']
 
     # user interaction items
     train_data = train_data[train_data['user_id'] == argument.user]
-    train_data = train_data.merge(item_meta[['item_id', 'title', 'keyword_list', 'display_url']], on='item_id', how='left')
+    train_data = train_data.merge(item_meta[['item_id'] + display_cols], on='item_id', how='left')
     print(train_data)
 
     # predictions
     recommend_items = prediction(nmf, argument.user, list(range(n_item)))  # [positive_item] + negative_item
     recommend_items = pd.DataFrame({'item_id': recommend_items, 'user_id': argument.user})
     recommend_items = recommend_items.merge(
-        item_meta[['item_id', 'title', 'keyword_list', 'display_url']], on='item_id', how='left'
+        item_meta[['item_id'] + display_cols], on='item_id', how='left'
     )
     recommend_items = recommend_items.merge(
-        user_meta[['user_id', 'following_list', 'id']], on='user_id', how='left', validate='m:1'
+        user_meta, on='user_id', how='left', validate='m:1'
     )
     print(recommend_items)

@@ -25,24 +25,26 @@ def args():
     parser.add_argument('-bs', '--batch_size', default=256, help='batch size', type=int)
     parser.add_argument('-ns', '--negative_size', default=4, help='train negative sample size', type=int)
     parser.add_argument('-ly', '--layers', default=[64, 32, 16, 8], help='mlp layer size', type=int, nargs='+')
+    parser.add_argument('-wd', '--weight_decay', default=0., help='weight decay for optimizer', type=float)
 
     return parser.parse_args()
 
 
-def get_optimizer(model, name: str, lr: float) -> Callable:
+def get_optimizer(model, name: str, lr: float, wd: float = 0.) -> Callable:
     """ get optimizer
     Args:
         model: pytorch model
         name: optimizer name
         lr: learning rate
+        wd: weight_decay(l2 regulraization)
 
     Returns: pytorch optimizer function
     """
 
     functions = {
-        'Adagrad': Adagrad(model.parameters(), lr=lr, eps=0.00001, weight_decay=0.0),
-        'Adadelta': Adadelta(model.parameters(), lr=lr, eps=1e-06, weight_decay=0.0),
-        'Adam': Adam(model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-06, weight_decay=0.0, amsgrad=False)
+        'Adagrad': Adagrad(model.parameters(), lr=lr, eps=0.00001, weight_decay=wd),
+        'Adadelta': Adadelta(model.parameters(), lr=lr, eps=1e-06, weight_decay=wd),
+        'Adam': Adam(model.parameters(), lr=lr, weight_decay=wd)
     }
     try:
         return functions[name]
@@ -60,12 +62,12 @@ if __name__ == '__main__':
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-    matrix = to_sparse_matrix(train_data, int(user_meta.user_id.max() + 1), int(item_meta.item_id.max() + 1),
+    matrix = to_sparse_matrix(train_data, int(user_meta.user_id.max()), int(item_meta.item_id.max()),
                               'user_id', 'item_id', 'Rating')
     train_iterator = Iterator(matrix, argument.negative_size, device=device)
     train_dataloader = DataLoader(train_iterator, batch_size=argument.batch_size, shuffle=True)
 
-    test_iterator = TestIterator(os.path.join(save_dir, 'negative_test.dat'))
+    test_iterator = TestIterator(os.path.join(save_dir, 'negative_test.dat'), device=device)
     test_dataloader = DataLoader(test_iterator, batch_size=1, shuffle=False)
 
     n_user, n_item = matrix.shape
@@ -79,14 +81,16 @@ if __name__ == '__main__':
         'batchSize': argument.batch_size,
         'negative_size': argument.negative_size,
         'layers': argument.layers,
-        'num_users': n_user, 'num_items': n_item
+        'num_users': n_user, 'num_items': n_item,
+        'weight_decay': argument.weight_decay,
+        'component': ['mlp', 'gmf']
     }
 
-    nmf = NeuralMF(n_user, n_item, hidden_size=argument.factor, layers=argument.layers, component=['gmf', 'mlp'],
-                   device=device)
+    nmf = NeuralMF(n_user, n_item, n_factor=argument.factor, layers=argument.layers, 
+                   component=model_params['component'], device=device)
 
     cross_entropy = BCEWithLogitsLoss()
-    optim = get_optimizer(nmf, name=model_params['optimizer'], lr=argument.learning_rate)
+    optim = get_optimizer(nmf, name=model_params['optimizer'], lr=argument.learning_rate, wd=argument.weight_decay)
 
     metrics = [nDCG(), RecallAtK()]
     model_version = f'nmf_v{argument.model_version}'
@@ -96,9 +100,9 @@ if __name__ == '__main__':
             monitor='val_nDCG', mode='max'
         ),
         MlflowLogger(experiment_name=argument.dataset, model_params=model_params, run_name=model_version,
-                     log_model=True)
+                     log_model=False)
     ]
-
+    print(nmf)
     print(f"device : {device}")
     nmf.fit(50, train_dataloader, test_dataloader, loss_func=cross_entropy, optimizer=optim, metrics=metrics,
             callback=callback)
