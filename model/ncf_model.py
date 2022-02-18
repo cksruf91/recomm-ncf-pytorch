@@ -9,12 +9,12 @@ from model.model_util import TorchInterfaceRecomm
 
 class MLP(nn.Module):
 
-    def __init__(self, user_size, item_size, layers=None):
+    def __init__(self, user_size, item_size, layers=None, dropout=0.2):
         super().__init__()
         if layers is None:
             layers = [64, 32, 16, 8]
         self.layers = layers
-        self.dropout = 0.0
+        self.dropout = dropout
         
         n_factor = int(self.layers[0]/2)
         self.user_embedding = nn.Embedding(user_size, n_factor)
@@ -29,7 +29,8 @@ class MLP(nn.Module):
     def dense_layer(self, in_dim, out_dim):
         return nn.Sequential(
             # nn.Dropout(p=self.dropout),
-            nn.Linear(in_dim, out_dim), nn.ReLU()
+            nn.Linear(in_dim, out_dim), 
+            nn.ReLU()
         )
 
     def forward(self, user, item):
@@ -58,7 +59,7 @@ class GMF(nn.Module):
 class NeuralMF(TorchInterfaceRecomm):
     """https://github.com/hexiangnan/neural_collaborative_filtering"""
 
-    def __init__(self, user_size: int, item_size: int, n_factor: int, layers=None,
+    def __init__(self, user_size: int, item_size: int, n_factor: int, layers=None, dropout: float = 0.2,
                  component: list = None, k: int = 10, device: torch.device = torch.device('cpu')):
         super().__init__()
         if layers is None:
@@ -76,7 +77,7 @@ class NeuralMF(TorchInterfaceRecomm):
             self.backbone_models['gmf'] = self.gmf
 
         if 'mlp' in self.component:
-            self.mlp = MLP(user_size, item_size, layers)
+            self.mlp = MLP(user_size, item_size, layers, dropout)
             self.backbone_models['mlp'] = self.mlp
 
         self.output_layer = nn.Linear(int(n_factor * len(self.component)), 1)
@@ -113,7 +114,7 @@ class NeuralMF(TorchInterfaceRecomm):
 
         if train:
             loss.backward()
-            # torch.nn.utils.clip_grad_norm_(self.parameters(), 1.0)
+            torch.nn.utils.clip_grad_norm_(self.parameters(), 1.0)
             optimizer.step()
 
             if scheduler is not None:
@@ -131,14 +132,14 @@ class NeuralMF(TorchInterfaceRecomm):
 
         with torch.no_grad():
             for step, data in enumerate(test_dataloader):
-                data = [d.reshape(-1) for d in data]
-                # data = [user, item, label]
-                loss, y, y_hat = self._compute_loss(data, loss_func, train=False)
+                user, items, positive_item = [d.reshape(-1) for d in data]
+                # data = [user, item, positive_item]
+                loss, _, y_hat = self._compute_loss([user, items, positive_item], loss_func, train=False)
                 val_loss += loss.item()
 
                 _, indices = torch.topk(y_hat, k=self.k)
-                output.append(list(data[1][indices].cpu().numpy()))
-                label.append([data[1][0]])  # positive item
+                output.append(list(items[indices].cpu().numpy()))  # model predictions
+                label.append([items[0].cpu().item()])  # positive item
 
         val_loss = val_loss / total_step
         return val_loss, output, label

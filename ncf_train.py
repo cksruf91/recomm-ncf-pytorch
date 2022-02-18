@@ -26,6 +26,8 @@ def args():
     parser.add_argument('-ns', '--negative_size', default=4, help='train negative sample size', type=int)
     parser.add_argument('-ly', '--layers', default=[64, 32, 16, 8], help='mlp layer size', type=int, nargs='+')
     parser.add_argument('-wd', '--weight_decay', default=0., help='weight decay for optimizer', type=float)
+    parser.add_argument('-o', '--dropout', default=0., help='dropout ratio', type=float)
+    parser.add_argument('-cpu', '--cpu',  action='store_true', help='')
 
     return parser.parse_args()
 
@@ -61,6 +63,8 @@ if __name__ == '__main__':
     user_meta = pd.read_csv(os.path.join(save_dir, 'user_meta.tsv'), sep='\t')
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    if argument.cpu:
+        device = torch.device('cpu')
 
     matrix = to_sparse_matrix(train_data, int(user_meta.user_id.max()), int(item_meta.item_id.max()),
                               'user_id', 'item_id', 'Rating')
@@ -83,10 +87,11 @@ if __name__ == '__main__':
         'layers': argument.layers,
         'num_users': n_user, 'num_items': n_item,
         'weight_decay': argument.weight_decay,
-        'component': ['mlp', 'gmf']
+        'component': ['mlp', 'gmf'],
+        'dropout': argument.dropout
     }
 
-    nmf = NeuralMF(n_user, n_item, n_factor=argument.factor, layers=argument.layers, 
+    nmf = NeuralMF(n_user, n_item, n_factor=argument.factor, layers=argument.layers, dropout=argument.dropout,
                    component=model_params['component'], device=device)
 
     cross_entropy = BCEWithLogitsLoss()

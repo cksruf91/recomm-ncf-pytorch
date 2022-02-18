@@ -81,7 +81,7 @@ class TorchInterfaceRecomm(nn.Module, metaclass=ABCMeta):
 
             start_epoch_time = time.time()
             train_loss = 0
-            output, label = [], []
+            # output, label = [], []
 
             for step, data in enumerate(train_dataloader):
                 # ------ step start ------
@@ -91,11 +91,11 @@ class TorchInterfaceRecomm(nn.Module, metaclass=ABCMeta):
                         prefix=f'train {e + 1:03d}/{epoch} epoch', suffix=f'{time.time() - start_epoch_time:0.2f} sec '
                     )
 
-                loss, y, y_hat = self._compute_loss(data, loss_func, optimizer, scheduler, train=True)
+                loss, _, _ = self._compute_loss(data, loss_func, optimizer, scheduler, train=True)
                 train_loss += loss.item()
 
-                output.extend(y_hat)
-                label.extend(y)
+                # output.extend(y_hat)
+                # label.extend(y)
 
                 if step >= total_step:
                     break
