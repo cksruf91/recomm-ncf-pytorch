@@ -189,8 +189,6 @@ def loading_brunch(file_path):
     interactions = logfile_to_df(logfile_dir)
     user_meta = metadata_to_df(user_meta_file)
     item_meta = metadata_to_df(item_meta_file)
-    
-    interactions.sort_values(['UserID','Timestamp'], inplace=True)
 
     # random sampling
     total_user = interactions['UserID'].nunique()
