@@ -101,7 +101,7 @@ if __name__ == '__main__':
     model_version = f'nmf_v{argument.model_version}'
     callback = [
         ModelCheckPoint(os.path.join(
-            'result', argument.dataset, model_version + '-e{epoch:02d}-loss{val_loss:1.3f}-nDCG{val_nDCG:1.3f}.zip'),
+            'result', argument.dataset, model_version + 'e{epoch:02d}_loss{val_loss:1.3f}_nDCG{val_nDCG:1.3f}.zip'),
             monitor='val_nDCG', mode='max'
         ),
         MlflowLogger(experiment_name=argument.dataset, model_params=model_params, run_name=model_version,

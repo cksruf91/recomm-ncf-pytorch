@@ -64,10 +64,11 @@ class NeuralMF(TorchInterfaceRecomm):
         super().__init__()
         if layers is None:
             layers = [64, 32, 16, 8]
-        if component is None:
-            component = ['gmf', 'mlp']
-        
-        self.component = sorted(component, reverse=True)
+        self.component = component
+
+        if self.component is None:
+            self.component = ['gmf', 'mlp']
+
         assert len(self.component) > 0
 
         self.backbone_models = {}
